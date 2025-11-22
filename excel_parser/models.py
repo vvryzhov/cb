@@ -250,6 +250,14 @@ class Employee(models.Model):
     def __str__(self):
         return f"{self.full_name} ({self.login})"
 
+    def __setattr__(self, name, value):
+        """Перехватываем попытки установить current_income и перенаправляем на _annotated_current_income"""
+        if name == 'current_income':
+            # Если пытаются установить current_income, устанавливаем _annotated_current_income
+            object.__setattr__(self, '_annotated_current_income', value)
+        else:
+            super().__setattr__(name, value)
+    
     def save(self, *args, **kwargs):
         # При сохранении можно автоматически обновлять историю зарплаты
         super().save(*args, **kwargs)

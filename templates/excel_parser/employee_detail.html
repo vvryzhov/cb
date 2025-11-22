@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ employee.full_name }} - Payroll BI{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h2 class="text-3xl font-bold mb-2">{{ employee.full_name }}</h2>
+    <p class="text-gray-600">Логин: {{ employee.login }}</p>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+    <!-- Основная информация -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4">Основная информация</h3>
+        <dl class="space-y-2">
+            <dt class="font-medium">Должность:</dt>
+            <dd class="text-gray-600">{{ employee.position|default:"—" }}</dd>
+            
+            <dt class="font-medium">Департамент:</dt>
+            <dd class="text-gray-600">{{ employee.department.name|default:"—" }}</dd>
+            
+            <dt class="font-medium">Отдел:</dt>
+            <dd class="text-gray-600">{{ employee.division.name|default:"—" }}</dd>
+            
+            <dt class="font-medium">Группа:</dt>
+            <dd class="text-gray-600">{{ employee.group.name|default:"—" }}</dd>
+            
+            <dt class="font-medium">Дата принятия:</dt>
+            <dd class="text-gray-600">{{ employee.hire_date|date:"d.m.Y" }}</dd>
+            
+            <dt class="font-medium">Функциональный руководитель:</dt>
+            <dd class="text-gray-600">
+                {% if employee.functional_manager %}
+                    <a href="{% url 'employee_detail' employee.functional_manager.id %}" class="text-blue-600 hover:text-blue-800">
+                        {{ employee.functional_manager.full_name }}
+                    </a>
+                {% else %}
+                    —
+                {% endif %}
+            </dd>
+            
+            <dt class="font-medium">Линейный руководитель:</dt>
+            <dd class="text-gray-600">
+                {% if employee.line_manager %}
+                    <a href="{% url 'employee_detail' employee.line_manager.id %}" class="text-blue-600 hover:text-blue-800">
+                        {{ employee.line_manager.full_name }}
+                    </a>
+                {% else %}
+                    —
+                {% endif %}
+            </dd>
+        </dl>
+    </div>
+    
+    <!-- Финансовые показатели -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4">Текущие финансовые показатели (гросс)</h3>
+        <dl class="space-y-2">
+            <dt class="font-medium">Оклад:</dt>
+            <dd class="text-gray-600 text-lg font-semibold">{{ employee.current_salary|floatformat:2 }} ₽</dd>
+            
+            <dt class="font-medium">Квартальная премия:</dt>
+            <dd class="text-gray-600">{{ employee.current_quarterly_bonus|floatformat:2 }} ₽</dd>
+            
+            <dt class="font-medium">Месячная премия:</dt>
+            <dd class="text-gray-600">{{ employee.current_monthly_bonus|floatformat:2 }} ₽</dd>
+            
+            <dt class="font-medium">Годовая премия:</dt>
+            <dd class="text-gray-600">{{ employee.current_yearly_bonus|floatformat:2 }} ₽</dd>
+            
+            <dt class="font-medium text-lg mt-4 pt-4 border-t">Текущий доход:</dt>
+            <dd class="text-green-600 text-2xl font-bold">{{ employee.current_income|floatformat:2 }} ₽</dd>
+        </dl>
+    </div>
+</div>
+
+<!-- История изменений зарплаты -->
+<div class="bg-white rounded-lg shadow-md p-6">
+    <h3 class="text-xl font-semibold mb-4">История изменений зарплаты</h3>
+    
+    {% if salary_history %}
+    <div class="overflow-x-auto">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Дата</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Изменение оклада</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Изменение дохода</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Комментарий</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200">
+                {% for history in salary_history %}
+                <tr>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ history.change_date|date:"d.m.Y" }}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm {% if history.salary_diff >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if history.salary_diff >= 0 %}+{% endif %}{{ history.salary_diff|floatformat:2 }} ₽
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold {% if history.total_income_diff >= 0 %}text-green-600{% else %}text-red-600{% endif %}">
+                        {% if history.total_income_diff >= 0 %}+{% endif %}{{ history.total_income_diff|floatformat:2 }} ₽
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        {{ history.comment|default:"—" }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <p class="text-gray-500">История изменений отсутствует</p>
+    {% endif %}
+</div>
+{% endblock %}
+

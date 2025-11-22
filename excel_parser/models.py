@@ -1,103 +1,366 @@
 """
-Models for Excel data storage and Jira integration
+Models for Payroll BI - ФОТ (Фонд оплаты труда)
 """
 from django.db import models
-from django.core.validators import FileExtensionValidator
-import json
+from django.core.validators import MinValueValidator
+from decimal import Decimal
 
 
-class ExcelFile(models.Model):
-    """Модель для хранения информации о загруженных Excel файлах"""
-    file_name = models.CharField(max_length=255, verbose_name="Имя файла")
-    file_path = models.FileField(
-        upload_to='excel_files/',
-        validators=[FileExtensionValidator(allowed_extensions=['xlsx', 'xls'])],
-        verbose_name="Путь к файлу"
+class Department(models.Model):
+    """Департамент"""
+    name = models.CharField(max_length=255, unique=True, verbose_name="Название")
+    manager = models.ForeignKey(
+        'Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_departments',
+        verbose_name="Руководитель"
     )
-    uploaded_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата загрузки")
-    total_rows = models.IntegerField(default=0, verbose_name="Всего строк")
-    processed_rows = models.IntegerField(default=0, verbose_name="Обработано строк")
-    status = models.CharField(
-        max_length=20,
-        choices=[
-            ('pending', 'Ожидает обработки'),
-            ('processing', 'Обрабатывается'),
-            ('completed', 'Завершено'),
-            ('failed', 'Ошибка'),
-        ],
-        default='pending',
-        verbose_name="Статус"
-    )
-    error_message = models.TextField(blank=True, null=True, verbose_name="Сообщение об ошибке")
-
-    class Meta:
-        verbose_name = "Excel файл"
-        verbose_name_plural = "Excel файлы"
-        ordering = ['-uploaded_at']
-
-    def __str__(self):
-        return f"{self.file_name} ({self.uploaded_at.strftime('%Y-%m-%d %H:%M')})"
-
-
-class ExcelRow(models.Model):
-    """Модель для хранения строк данных из Excel"""
-    excel_file = models.ForeignKey(
-        ExcelFile,
-        on_delete=models.CASCADE,
-        related_name='rows',
-        verbose_name="Excel файл"
-    )
-    row_number = models.IntegerField(verbose_name="Номер строки в файле")
-    
-    # Поля для хранения данных из Excel (JSON)
-    # Структура будет динамической в зависимости от колонок Excel
-    data = models.JSONField(default=dict, verbose_name="Данные строки")
-    
-    # Ссылка на созданную задачу в Jira
-    jira_key = models.CharField(max_length=50, blank=True, null=True, verbose_name="Ключ задачи Jira")
-    jira_url = models.URLField(blank=True, null=True, verbose_name="URL задачи Jira")
-    jira_created_at = models.DateTimeField(blank=True, null=True, verbose_name="Дата создания в Jira")
-    
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
 
     class Meta:
-        verbose_name = "Строка Excel"
-        verbose_name_plural = "Строки Excel"
-        ordering = ['excel_file', 'row_number']
+        verbose_name = "Департамент"
+        verbose_name_plural = "Департаменты"
+        ordering = ['name']
+
+    def __str__(self):
+        return self.name
+
+    @property
+    def divisions(self):
+        """Список отделов департамента"""
+        return self.divisions.all()
+
+
+class Division(models.Model):
+    """Отдел"""
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.CASCADE,
+        related_name='divisions',
+        verbose_name="Департамент"
+    )
+    name = models.CharField(max_length=255, verbose_name="Название")
+    manager = models.ForeignKey(
+        'Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_divisions',
+        verbose_name="Руководитель"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+
+    class Meta:
+        verbose_name = "Отдел"
+        verbose_name_plural = "Отделы"
+        ordering = ['department', 'name']
+        unique_together = [['department', 'name']]
+
+    def __str__(self):
+        return f"{self.department.name} - {self.name}"
+
+    @property
+    def groups(self):
+        """Список групп отдела"""
+        return self.groups.all()
+
+
+class Group(models.Model):
+    """Группа"""
+    division = models.ForeignKey(
+        Division,
+        on_delete=models.CASCADE,
+        related_name='groups',
+        verbose_name="Отдел"
+    )
+    name = models.CharField(max_length=255, verbose_name="Название")
+    manager = models.ForeignKey(
+        'Employee',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='managed_groups',
+        verbose_name="Руководитель"
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+
+    class Meta:
+        verbose_name = "Группа"
+        verbose_name_plural = "Группы"
+        ordering = ['division', 'name']
+        unique_together = [['division', 'name']]
+
+    def __str__(self):
+        return f"{self.division.department.name} - {self.division.name} - {self.name}"
+
+
+class Employee(models.Model):
+    """Сотрудник"""
+    # Основная информация
+    full_name = models.CharField(max_length=255, verbose_name="ФИО")
+    login = models.CharField(max_length=100, unique=True, verbose_name="Логин")
+    
+    # Организационная структура
+    department = models.ForeignKey(
+        Department,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employees',
+        verbose_name="Департамент"
+    )
+    division = models.ForeignKey(
+        Division,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employees',
+        verbose_name="Отдел"
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='employees',
+        verbose_name="Группа"
+    )
+    position = models.CharField(max_length=255, blank=True, null=True, verbose_name="Должность")
+    
+    # Руководители
+    functional_manager = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='functional_subordinates',
+        verbose_name="Функциональный руководитель"
+    )
+    line_manager = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='line_subordinates',
+        verbose_name="Линейный руководитель"
+    )
+    
+    # Даты
+    hire_date = models.DateField(verbose_name="Дата принятия на работу")
+    
+    # Текущие финансовые показатели (гросс)
+    current_salary = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name="Текущий оклад, гросс"
+    )
+    current_quarterly_bonus = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name="Текущая квартальная премия, гросс"
+    )
+    current_monthly_bonus = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name="Текущая месячная премия, гросс"
+    )
+    current_yearly_bonus = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        validators=[MinValueValidator(Decimal('0.00'))],
+        verbose_name="Текущая годовая премия, гросс"
+    )
+    
+    # Метод для вычисления текущего дохода
+    @property
+    def current_income(self):
+        """Текущий доход, гросс - сумма оклада и всех премий"""
+        return (
+            self.current_salary +
+            self.current_quarterly_bonus +
+            self.current_monthly_bonus +
+            self.current_yearly_bonus
+        )
+    
+    # Метаданные
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
+    is_active = models.BooleanField(default=True, verbose_name="Активен")
+
+    class Meta:
+        verbose_name = "Сотрудник"
+        verbose_name_plural = "Сотрудники"
+        ordering = ['full_name']
         indexes = [
-            models.Index(fields=['excel_file', 'row_number']),
-            models.Index(fields=['jira_key']),
+            models.Index(fields=['login']),
+            models.Index(fields=['department', 'division', 'group']),
+            models.Index(fields=['hire_date']),
         ]
 
     def __str__(self):
-        return f"Строка {self.row_number} из {self.excel_file.file_name}"
+        return f"{self.full_name} ({self.login})"
 
-    def get_data_preview(self, max_length=100):
-        """Получить предпросмотр данных для отображения"""
-        preview = json.dumps(self.data, ensure_ascii=False)[:max_length]
-        if len(json.dumps(self.data, ensure_ascii=False)) > max_length:
-            preview += "..."
-        return preview
+    def save(self, *args, **kwargs):
+        # При сохранении можно автоматически обновлять историю зарплаты
+        super().save(*args, **kwargs)
 
 
-class ExcelColumnMapping(models.Model):
-    """Модель для хранения маппинга колонок Excel к полям"""
-    excel_file = models.ForeignKey(
-        ExcelFile,
+class SalaryHistory(models.Model):
+    """История изменений зарплаты сотрудника"""
+    employee = models.ForeignKey(
+        Employee,
         on_delete=models.CASCADE,
-        related_name='column_mappings',
-        verbose_name="Excel файл"
+        related_name='salary_history',
+        verbose_name="Сотрудник"
     )
-    excel_column = models.CharField(max_length=255, verbose_name="Колонка в Excel")
-    db_field = models.CharField(max_length=255, verbose_name="Поле в БД")
-    order = models.IntegerField(verbose_name="Порядок")
+    change_date = models.DateField(verbose_name="Дата изменения")
+    
+    # Изменения оклада
+    salary_before = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Оклад до изменения"
+    )
+    salary_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Оклад после изменения"
+    )
+    salary_diff = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Изменение оклада (diff)"
+    )
+    
+    # Изменения премий
+    quarterly_bonus_before = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Квартальная премия до"
+    )
+    quarterly_bonus_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Квартальная премия после"
+    )
+    quarterly_bonus_diff = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Изменение квартальной премии (diff)"
+    )
+    
+    monthly_bonus_before = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Месячная премия до"
+    )
+    monthly_bonus_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Месячная премия после"
+    )
+    monthly_bonus_diff = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Изменение месячной премии (diff)"
+    )
+    
+    yearly_bonus_before = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Годовая премия до"
+    )
+    yearly_bonus_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Годовая премия после"
+    )
+    yearly_bonus_diff = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Изменение годовой премии (diff)"
+    )
+    
+    # Общее изменение дохода
+    total_income_before = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Общий доход до"
+    )
+    total_income_after = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Общий доход после"
+    )
+    total_income_diff = models.DecimalField(
+        max_digits=12,
+        decimal_places=2,
+        default=Decimal('0.00'),
+        verbose_name="Изменение общего дохода (diff)"
+    )
+    
+    # Комментарий к изменению
+    comment = models.TextField(blank=True, null=True, verbose_name="Комментарий")
+    
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания записи")
 
     class Meta:
-        verbose_name = "Маппинг колонок"
-        verbose_name_plural = "Маппинги колонок"
-        ordering = ['excel_file', 'order']
+        verbose_name = "История изменения зарплаты"
+        verbose_name_plural = "История изменений зарплаты"
+        ordering = ['-change_date', '-created_at']
+        indexes = [
+            models.Index(fields=['employee', 'change_date']),
+            models.Index(fields=['change_date']),
+        ]
 
     def __str__(self):
-        return f"{self.excel_column} → {self.db_field}"
+        return f"{self.employee.full_name} - {self.change_date} (Δ {self.total_income_diff})"
 
+    def save(self, *args, **kwargs):
+        # Автоматически вычисляем diff при сохранении
+        self.salary_diff = self.salary_after - self.salary_before
+        self.quarterly_bonus_diff = self.quarterly_bonus_after - self.quarterly_bonus_before
+        self.monthly_bonus_diff = self.monthly_bonus_after - self.monthly_bonus_before
+        self.yearly_bonus_diff = self.yearly_bonus_after - self.yearly_bonus_before
+        
+        self.total_income_before = (
+            self.salary_before +
+            self.quarterly_bonus_before +
+            self.monthly_bonus_before +
+            self.yearly_bonus_before
+        )
+        self.total_income_after = (
+            self.salary_after +
+            self.quarterly_bonus_after +
+            self.monthly_bonus_after +
+            self.yearly_bonus_after
+        )
+        self.total_income_diff = self.total_income_after - self.total_income_before
+        
+        super().save(*args, **kwargs)

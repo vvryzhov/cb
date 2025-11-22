@@ -1,0 +1,137 @@
+{% extends 'base.html' %}
+
+{% block title %}Аналитика - Payroll BI{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h2 class="text-3xl font-bold mb-4">Аналитические отчеты</h2>
+</div>
+
+<div x-data="analytics()" x-init="loadFotSummary()">
+    <!-- Сводный отчет по ФОТ -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h3 class="text-xl font-semibold mb-4">Сводный отчет по ФОТ</h3>
+        <div id="fot-summary" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="text-center">
+                <p class="text-sm text-gray-600">Общий ФОТ</p>
+                <p class="text-2xl font-bold text-blue-600" x-text="fotSummary.total || '0'"></p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-600">Средний ФОТ</p>
+                <p class="text-2xl font-bold text-green-600" x-text="fotSummary.avg || '0'"></p>
+            </div>
+            <div class="text-center">
+                <p class="text-sm text-gray-600">Количество сотрудников</p>
+                <p class="text-2xl font-bold text-purple-600" x-text="fotSummary.count || '0'"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Дельта департамента -->
+    <div class="bg-white rounded-lg shadow-md p-6 mb-6">
+        <h3 class="text-xl font-semibold mb-4">Дельта повышения департамента</h3>
+        <form @submit.prevent="getDepartmentDelta()" class="flex flex-wrap gap-4 items-end mb-4">
+            <div>
+                <label class="block text-gray-700 text-sm font-bold mb-2">Департамент</label>
+                <select x-model="deltaDepartment" class="shadow border rounded py-2 px-3 text-gray-700">
+                    <option value="">Выберите департамент</option>
+                    {% for dept in departments %}
+                        <option value="{{ dept.id }}">{{ dept.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            
+            <div>
+                <label class="block text-gray-700 text-sm font-bold mb-2">Год начала</label>
+                <input type="number" x-model="deltaYearFrom" min="2020" max="2030" value="2023" 
+                       class="shadow border rounded py-2 px-3 text-gray-700">
+            </div>
+            
+            <div>
+                <label class="block text-gray-700 text-sm font-bold mb-2">Год окончания</label>
+                <input type="number" x-model="deltaYearTo" min="2020" max="2030" value="2024" 
+                       class="shadow border rounded py-2 px-3 text-gray-700">
+            </div>
+            
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Получить отчет
+            </button>
+        </form>
+        
+        <div id="delta-result" x-show="deltaResult" x-cloak class="mt-4 p-4 bg-gray-50 rounded">
+            <template x-if="deltaResult">
+                <div>
+                    <h4 class="font-semibold mb-2" x-text="'Департамент: ' + deltaResult.department"></h4>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <p class="text-sm text-gray-600">ФОТ <span x-text="deltaResult.year_from"></span></p>
+                            <p class="text-lg font-bold" x-text="deltaResult.total_income_from + ' ₽'"></p>
+                        </div>
+                        <div>
+                            <p class="text-sm text-gray-600">ФОТ <span x-text="deltaResult.year_to"></span></p>
+                            <p class="text-lg font-bold" x-text="deltaResult.total_income_to + ' ₽'"></p>
+                        </div>
+                        <div class="col-span-2">
+                            <p class="text-sm text-gray-600">Дельта</p>
+                            <p class="text-xl font-bold" 
+                               :class="deltaResult.delta_total >= 0 ? 'text-green-600' : 'text-red-600'"
+                               x-text="(deltaResult.delta_total >= 0 ? '+' : '') + deltaResult.delta_total + ' ₽ (' + deltaResult.delta_percent.toFixed(2) + '%)'"></p>
+                        </div>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function analytics() {
+    return {
+        fotSummary: {},
+        deltaDepartment: '',
+        deltaYearFrom: 2023,
+        deltaYearTo: 2024,
+        deltaResult: null,
+        
+        async loadFotSummary() {
+            try {
+                const response = await fetch('/api/analytics/fot_summary/');
+                const data = await response.json();
+                this.fotSummary = {
+                    total: data.current_fot?.total ? parseFloat(data.current_fot.total).toLocaleString('ru-RU') + ' ₽' : '0 ₽',
+                    avg: data.current_fot?.avg ? parseFloat(data.current_fot.avg).toLocaleString('ru-RU') + ' ₽' : '0 ₽',
+                    count: data.current_fot?.count || 0
+                };
+            } catch (error) {
+                console.error('Error loading FOT summary:', error);
+            }
+        },
+        
+        async getDepartmentDelta() {
+            if (!this.deltaDepartment) {
+                alert('Выберите департамент');
+                return;
+            }
+            
+            try {
+                const response = await fetch(
+                    `/api/analytics/department_delta/?department_id=${this.deltaDepartment}&year_from=${this.deltaYearFrom}&year_to=${this.deltaYearTo}`
+                );
+                const data = await response.json();
+                if (data.error) {
+                    alert('Ошибка: ' + data.error);
+                } else {
+                    this.deltaResult = data;
+                }
+            } catch (error) {
+                console.error('Error getting department delta:', error);
+                alert('Ошибка при получении данных');
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block title %}Загрузить Excel - Excel → БД → BI → Jira{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <h2 class="text-3xl font-bold mb-6">Загрузить Excel файл</h2>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <form id="uploadForm" 
+              hx-post="{% url 'upload_file' %}"
+              hx-target="#result"
+              hx-swap="innerHTML"
+              enctype="multipart/form-data">
+            {% csrf_token %}
+            
+            <div class="mb-4">
+                <label class="block text-gray-700 text-sm font-bold mb-2" for="excel_file">
+                    Выберите Excel файл (.xlsx, .xls)
+                </label>
+                <input type="file" 
+                       id="excel_file" 
+                       name="excel_file" 
+                       accept=".xlsx,.xls"
+                       required
+                       class="block w-full text-sm text-gray-500
+                              file:mr-4 file:py-2 file:px-4
+                              file:rounded-full file:border-0
+                              file:text-sm file:font-semibold
+                              file:bg-blue-50 file:text-blue-700
+                              hover:file:bg-blue-100">
+            </div>
+            
+            <button type="submit" 
+                    class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded w-full">
+                Загрузить и обработать
+            </button>
+        </form>
+        
+        <div id="result" class="mt-4"></div>
+        
+        <div id="loading" class="hidden mt-4">
+            <div class="bg-blue-100 border border-blue-400 text-blue-700 px-4 py-3 rounded">
+                <p class="font-bold">Обработка файла...</p>
+                <p class="text-sm">Пожалуйста, подождите. Файл обрабатывается в фоновом режиме.</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="mt-6 bg-yellow-50 border border-yellow-400 text-yellow-700 px-4 py-3 rounded">
+        <p class="font-bold mb-2">Внимание:</p>
+        <ul class="list-disc list-inside text-sm space-y-1">
+            <li>Поддерживаются файлы формата .xlsx и .xls</li>
+            <li>Первая строка файла должна содержать заголовки колонок</li>
+            <li>Обработка происходит в фоновом режиме - вы можете закрыть страницу</li>
+            <li>После обработки файл появится в списке на главной странице</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    document.getElementById('uploadForm').addEventListener('htmx:beforeRequest', function() {
+        document.getElementById('loading').classList.remove('hidden');
+    });
+    
+    document.getElementById('uploadForm').addEventListener('htmx:afterRequest', function(event) {
+        if (event.detail.xhr.status === 200) {
+            const response = JSON.parse(event.detail.xhr.responseText);
+            if (response.success) {
+                setTimeout(function() {
+                    window.location.href = '/file/' + response.file_id + '/';
+                }, 2000);
+            }
+        }
+    });
+</script>
+{% endblock %}
+

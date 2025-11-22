@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+
+{% block title %}Отчёты - Excel → БД → BI → Jira{% endblock %}
+
+{% block content %}
+<h2 class="text-3xl font-bold mb-6">Отчёты и статистика</h2>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-semibold mb-2">Всего файлов</h3>
+        <p class="text-3xl font-bold text-blue-600">{{ files_stats.total_files }}</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-semibold mb-2">Всего строк</h3>
+        <p class="text-3xl font-bold text-green-600">{{ files_stats.total_rows }}</p>
+    </div>
+    
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-lg font-semibold mb-2">Строк с Jira</h3>
+        <p class="text-3xl font-bold text-purple-600">{{ rows_with_jira }}</p>
+    </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <!-- График: Строки с Jira / без Jira -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4">Распределение по наличию задач Jira</h3>
+        <canvas id="jiraChart" width="400" height="200"></canvas>
+    </div>
+    
+    <!-- График: Статусы файлов -->
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-4">Статусы файлов</h3>
+        <canvas id="statusChart" width="400" height="200"></canvas>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// График: Строки с Jira / без Jira
+const jiraCtx = document.getElementById('jiraChart').getContext('2d');
+new Chart(jiraCtx, {
+    type: 'doughnut',
+    data: {
+        labels: ['С задачей Jira', 'Без задачи Jira'],
+        datasets: [{
+            data: [{{ rows_with_jira }}, {{ rows_without_jira }}],
+            backgroundColor: ['#10b981', '#ef4444']
+        }]
+    },
+    options: {
+        responsive: true,
+        maintainAspectRatio: true
+    }
+});
+
+// График: Статусы файлов
+const statusCtx = document.getElementById('statusChart').getContext('2d');
+const statusData = {
+    labels: [{% for status in files_status %}'{{ status.status|capfirst }}'{% if not forloop.last %},{% endif %}{% endfor %}],
+    datasets: [{
+        label: 'Количество файлов',
+        data: [{% for status in files_status %}{{ status.count }}{% if not forloop.last %},{% endif %}{% endfor %}],
+        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#ef4444']
+    }]
+};
+
+new Chart(statusCtx, {
+    type: 'bar',
+    data: statusData,
+    options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        scales: {
+            y: {
+                beginAtZero: true
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
+

@@ -1,0 +1,47 @@
+{% extends 'base.html' %}
+
+{% block title %}Главная - Excel → БД → BI → Jira{% endblock %}
+
+{% block content %}
+<div class="mb-6">
+    <h2 class="text-3xl font-bold mb-4">Загруженные Excel файлы</h2>
+    <a href="{% url 'upload_file' %}" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+        + Загрузить новый файл
+    </a>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+    {% for file in files %}
+    <div class="bg-white rounded-lg shadow-md p-6">
+        <h3 class="text-xl font-semibold mb-2">{{ file.file_name }}</h3>
+        <p class="text-gray-600 text-sm mb-2">
+            Загружен: {{ file.uploaded_at|date:"d.m.Y H:i" }}
+        </p>
+        <div class="flex justify-between items-center mb-4">
+            <span class="text-sm">
+                Строк: {{ file.processed_rows }} / {{ file.total_rows }}
+            </span>
+            <span class="px-2 py-1 rounded text-xs
+                {% if file.status == 'completed' %}bg-green-100 text-green-800
+                {% elif file.status == 'processing' %}bg-yellow-100 text-yellow-800
+                {% elif file.status == 'failed' %}bg-red-100 text-red-800
+                {% else %}bg-gray-100 text-gray-800{% endif %}">
+                {{ file.get_status_display }}
+            </span>
+        </div>
+        <a href="{% url 'file_detail' file.id %}" 
+           class="text-blue-600 hover:text-blue-800 font-medium">
+            Открыть →
+        </a>
+    </div>
+    {% empty %}
+    <div class="col-span-full text-center py-12">
+        <p class="text-gray-500 text-lg">Нет загруженных файлов</p>
+        <a href="{% url 'upload_file' %}" class="text-blue-600 hover:text-blue-800 mt-4 inline-block">
+            Загрузить первый файл
+        </a>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+

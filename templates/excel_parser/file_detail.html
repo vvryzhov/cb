@@ -1,0 +1,286 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ excel_file.file_name }} - Excel → БД → BI → Jira{% endblock %}
+
+{% block content %}
+<div x-data="fileDetail()">
+    <div class="mb-6">
+        <h2 class="text-3xl font-bold mb-2">{{ excel_file.file_name }}</h2>
+        <div class="flex items-center space-x-4 text-sm text-gray-600">
+            <span>Статус: 
+                <span class="px-2 py-1 rounded text-xs
+                    {% if excel_file.status == 'completed' %}bg-green-100 text-green-800
+                    {% elif excel_file.status == 'processing' %}bg-yellow-100 text-yellow-800
+                    {% elif excel_file.status == 'failed' %}bg-red-100 text-red-800
+                    {% else %}bg-gray-100 text-gray-800{% endif %}">
+                    {{ excel_file.get_status_display }}
+                </span>
+            </span>
+            <span>Всего строк: {{ total_rows }}</span>
+            <span>Обработано: {{ excel_file.processed_rows }} / {{ excel_file.total_rows }}</span>
+        </div>
+    </div>
+    
+    <!-- Фильтры и поиск -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-4">
+        <form method="get" class="flex flex-wrap gap-4 items-end">
+            <div class="flex-1 min-w-[200px]">
+                <label class="block text-gray-700 text-sm font-bold mb-2">Поиск</label>
+                <input type="text" 
+                       name="search" 
+                       value="{{ search }}"
+                       placeholder="Поиск по данным..."
+                       class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            
+            <div>
+                <label class="block text-gray-700 text-sm font-bold mb-2">Jira задача</label>
+                <select name="has_jira" class="shadow border rounded py-2 px-3 text-gray-700">
+                    <option value="">Все</option>
+                    <option value="yes" {% if has_jira_filter == 'yes' %}selected{% endif %}>Есть задача</option>
+                    <option value="no" {% if has_jira_filter == 'no' %}selected{% endif %}>Нет задачи</option>
+                </select>
+            </div>
+            
+            <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+                Применить фильтры
+            </button>
+            
+            <a href="{% url 'file_detail' excel_file.id %}" class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">
+                Сбросить
+            </a>
+        </form>
+    </div>
+    
+    <!-- Действия -->
+    <div class="bg-white rounded-lg shadow-md p-4 mb-4">
+        <div class="flex items-center justify-between">
+            <div>
+                <input type="checkbox" 
+                       @change="toggleAll()" 
+                       :checked="selectedRows.length === pageRows.length && pageRows.length > 0"
+                       class="mr-2">
+                <span>Выбрано: <strong x-text="selectedRows.length"></strong></span>
+            </div>
+            
+            <div class="space-x-2" x-show="selectedRows.length > 0">
+                <button @click="showJiraModal = true" 
+                        class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                    Создать задачи в Jira
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Таблица с данными -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+        <table class="min-w-full divide-y divide-gray-200">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12">
+                        <input type="checkbox" @change="toggleAll()" :checked="selectedRows.length === pageRows.length && pageRows.length > 0">
+                    </th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Строка</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Данные</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Jira задача</th>
+                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Дата создания</th>
+                </tr>
+            </thead>
+            <tbody class="bg-white divide-y divide-gray-200" x-init="loadRows()">
+                {% for row in page_obj %}
+                <tr class="hover:bg-gray-50">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <input type="checkbox" 
+                               :value="{{ row.id }}"
+                               @change="toggleRow({{ row.id }})"
+                               :checked="selectedRows.includes({{ row.id }})">
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                        {{ row.row_number }}
+                    </td>
+                    <td class="px-6 py-4 text-sm text-gray-500">
+                        <div class="max-w-md truncate" title="{{ row.get_data_preview }}">
+                            {{ row.get_data_preview }}
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm">
+                        {% if row.jira_key %}
+                            <a href="{{ row.jira_url }}" target="_blank" class="text-blue-600 hover:text-blue-800">
+                                {{ row.jira_key }}
+                            </a>
+                        {% else %}
+                            <span class="text-gray-400">—</span>
+                        {% endif %}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {{ row.created_at|date:"d.m.Y H:i" }}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="5" class="px-6 py-4 text-center text-gray-500">
+                        Нет данных
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    
+    <!-- Пагинация -->
+    {% if page_obj.has_other_pages %}
+    <div class="mt-4 flex justify-center">
+        <nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px">
+            {% if page_obj.has_previous %}
+                <a href="?page={{ page_obj.previous_page_number }}{% if search %}&search={{ search }}{% endif %}{% if has_jira_filter %}&has_jira={{ has_jira_filter }}{% endif %}" 
+                   class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    Назад
+                </a>
+            {% endif %}
+            
+            <span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">
+                Страница {{ page_obj.number }} из {{ page_obj.paginator.num_pages }}
+            </span>
+            
+            {% if page_obj.has_next %}
+                <a href="?page={{ page_obj.next_page_number }}{% if search %}&search={{ search }}{% endif %}{% if has_jira_filter %}&has_jira={{ has_jira_filter }}{% endif %}" 
+                   class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50">
+                    Вперед
+                </a>
+            {% endif %}
+        </nav>
+    </div>
+    {% endif %}
+    
+    <!-- Модальное окно для создания задач в Jira -->
+    <div x-show="showJiraModal" 
+         x-cloak
+         class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50"
+         @click.away="showJiraModal = false">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <h3 class="text-lg font-bold mb-4">Создать задачи в Jira</h3>
+            
+            <form @submit.prevent="createJiraIssues()">
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Ключ проекта Jira</label>
+                    <input type="text" 
+                           x-model="jiraProjectKey" 
+                           required
+                           placeholder="PROJ"
+                           class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                </div>
+                
+                <div class="mb-4">
+                    <label class="block text-gray-700 text-sm font-bold mb-2">Тип задачи</label>
+                    <select x-model="jiraIssueType" class="shadow border rounded w-full py-2 px-3 text-gray-700">
+                        <option value="Task">Task</option>
+                        <option value="Bug">Bug</option>
+                        <option value="Story">Story</option>
+                        <option value="Epic">Epic</option>
+                    </select>
+                </div>
+                
+                <div class="mb-4">
+                    <p class="text-sm text-gray-600">
+                        Будет создано задач: <strong x-text="selectedRows.length"></strong>
+                    </p>
+                </div>
+                
+                <div class="flex justify-end space-x-2">
+                    <button type="button" 
+                            @click="showJiraModal = false"
+                            class="bg-gray-400 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded">
+                        Отмена
+                    </button>
+                    <button type="submit" 
+                            :disabled="creating"
+                            class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50">
+                        <span x-show="!creating">Создать</span>
+                        <span x-show="creating">Создание...</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function fileDetail() {
+    return {
+        selectedRows: [],
+        showJiraModal: false,
+        jiraProjectKey: '',
+        jiraIssueType: 'Task',
+        creating: false,
+        pageRows: [{% for row in page_obj %}{{ row.id }}{% if not forloop.last %},{% endif %}{% endfor %}],
+        
+        loadRows() {
+            // Инициализация выбранных строк
+        },
+        
+        toggleAll() {
+            const checkboxes = document.querySelectorAll('tbody input[type="checkbox"]:not([value=""])');
+            const allChecked = this.selectedRows.length === this.pageRows.length;
+            
+            checkboxes.forEach(cb => {
+                const rowId = parseInt(cb.value);
+                if (allChecked) {
+                    this.selectedRows = this.selectedRows.filter(id => id !== rowId);
+                    cb.checked = false;
+                } else {
+                    if (!this.selectedRows.includes(rowId)) {
+                        this.selectedRows.push(rowId);
+                    }
+                    cb.checked = true;
+                }
+            });
+        },
+        
+        toggleRow(rowId) {
+            const index = this.selectedRows.indexOf(rowId);
+            if (index > -1) {
+                this.selectedRows.splice(index, 1);
+            } else {
+                this.selectedRows.push(rowId);
+            }
+        },
+        
+        async createJiraIssues() {
+            this.creating = true;
+            
+            try {
+                const response = await fetch('/create-jira-issues/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({
+                        row_ids: this.selectedRows,
+                        project_key: this.jiraProjectKey,
+                        issue_type: this.jiraIssueType
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`Создано задач: ${data.summary.created}\nПропущено: ${data.summary.skipped}\nОшибок: ${data.summary.errors}`);
+                    window.location.reload();
+                } else {
+                    alert('Ошибка: ' + data.error);
+                }
+            } catch (error) {
+                alert('Ошибка при создании задач: ' + error.message);
+            } finally {
+                this.creating = false;
+                this.showJiraModal = false;
+            }
+        }
+    }
+}
+</script>
+{% endblock %}
+

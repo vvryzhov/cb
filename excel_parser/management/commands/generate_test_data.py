@@ -160,9 +160,9 @@ class Command(BaseCommand):
             # Оклад от 50,000 до 500,000
             current_salary = Decimal(random.randint(50000, 500000))
             # Премии (0-50% от оклада)
-            current_quarterly_bonus = Decimal(random.randint(0, int(current_salary * 0.5)))
-            current_monthly_bonus = Decimal(random.randint(0, int(current_salary * 0.3)))
-            current_yearly_bonus = Decimal(random.randint(0, int(current_salary * 2)))
+            current_quarterly_bonus = Decimal(random.randint(0, int(current_salary * Decimal('0.5'))))
+            current_monthly_bonus = Decimal(random.randint(0, int(current_salary * Decimal('0.3'))))
+            current_yearly_bonus = Decimal(random.randint(0, int(current_salary * Decimal('2.0'))))
             
             # Создаем сотрудника
             employee = Employee.objects.create(

@@ -291,8 +291,8 @@ def index(request):
     
     # Сводная статистика по ФОТ
     fot_summary = Employee.objects.filter(is_active=True).with_current_income().aggregate(
-        total_fot=Sum('current_income'),
-        avg_fot=Avg('current_income'),
+        total_fot=Sum('_annotated_current_income'),
+        avg_fot=Avg('_annotated_current_income'),
         total_salary=Sum('current_salary')
     )
     

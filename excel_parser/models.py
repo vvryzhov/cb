@@ -105,8 +105,9 @@ class EmployeeQuerySet(models.QuerySet):
     
     def with_current_income(self):
         """Добавляет вычисляемое поле current_income через annotate"""
+        # Используем другое имя для annotate, чтобы не конфликтовать с property
         return self.annotate(
-            current_income=ExpressionWrapper(
+            _annotated_current_income=ExpressionWrapper(
                 F('current_salary') + 
                 F('current_quarterly_bonus') + 
                 F('current_monthly_bonus') + 
@@ -215,6 +216,11 @@ class Employee(models.Model):
     @property
     def current_income(self):
         """Текущий доход, гросс - сумма оклада и всех премий"""
+        # Если есть annotate поле (из with_current_income()), используем его
+        if hasattr(self, '_annotated_current_income'):
+            return self._annotated_current_income
+        
+        # Иначе вычисляем вручную
         return (
             self.current_salary +
             self.current_quarterly_bonus +

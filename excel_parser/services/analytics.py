@@ -55,8 +55,8 @@ class AnalyticsService:
         
         # Текущие показатели сотрудников
         current_stats = employees.with_current_income().aggregate(
-            total_current=Sum('current_income'),
-            avg_current=Avg('current_income'),
+            total_current=Sum('_annotated_current_income'),
+            avg_current=Avg('_annotated_current_income'),
             count=Count('id')
         )
         
@@ -123,9 +123,9 @@ class AnalyticsService:
         
         # Метрики
         if 'total_income' in metrics:
-            annotations['total_income'] = Sum('current_income')
+            annotations['total_income'] = Sum('_annotated_current_income')
         if 'avg_income' in metrics:
-            annotations['avg_income'] = Avg('current_income')
+            annotations['avg_income'] = Avg('_annotated_current_income')
         if 'count' in metrics:
             annotations['count'] = Count('id')
         if 'total_salary' in metrics:
@@ -215,15 +215,15 @@ class AnalyticsService:
         
         # Текущий ФОТ
         current_fot = employees.aggregate(
-            total=Sum('current_income'),
-            avg=Avg('current_income'),
+            total=Sum('_annotated_current_income'),
+            avg=Avg('_annotated_current_income'),
             count=Count('id')
         )
         
         # ФОТ по департаментам
         fot_by_department = employees.values('department__name').annotate(
-            total=Sum('current_income'),
-            avg=Avg('current_income'),
+            total=Sum('_annotated_current_income'),
+            avg=Avg('_annotated_current_income'),
             count=Count('id')
         ).order_by('-total')
         

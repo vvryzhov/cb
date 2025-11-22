@@ -131,13 +131,31 @@ class Command(BaseCommand):
 
         # Генерируем сотрудников
         created_employees = []
+        
+        # Получаем максимальный номер существующего логина для уникальности
+        existing_logins = Employee.objects.filter(login__startswith='user_').values_list('login', flat=True)
+        max_existing_num = 0
+        for login in existing_logins:
+            try:
+                num = int(login.split('_')[1])
+                max_existing_num = max(max_existing_num, num)
+            except (ValueError, IndexError):
+                pass
+        
+        start_num = max_existing_num + 1
+        
         for i in range(employees_count):
             # Случайные данные
             first_name = random.choice(first_names)
             last_name = random.choice(last_names)
             middle_name = random.choice(middle_names)
             full_name = f"{last_name} {first_name} {middle_name}"
-            login = f"user_{i+1:03d}"
+            login = f"user_{start_num + i:03d}"
+            
+            # Проверяем, не существует ли уже такой логин
+            while Employee.objects.filter(login=login).exists():
+                start_num += 1
+                login = f"user_{start_num + i:03d}"
             
             # Случайная организационная структура
             department = random.choice(departments)
@@ -164,21 +182,39 @@ class Command(BaseCommand):
             current_monthly_bonus = Decimal(random.randint(0, int(current_salary * Decimal('0.3'))))
             current_yearly_bonus = Decimal(random.randint(0, int(current_salary * Decimal('2.0'))))
             
-            # Создаем сотрудника
-            employee = Employee.objects.create(
-                full_name=full_name,
+            # Создаем сотрудника (используем get_or_create для избежания дубликатов)
+            employee, created = Employee.objects.get_or_create(
                 login=login,
-                department=department,
-                division=division,
-                group=group,
-                position=position,
-                hire_date=hire_date,
-                current_salary=current_salary,
-                current_quarterly_bonus=current_quarterly_bonus,
-                current_monthly_bonus=current_monthly_bonus,
-                current_yearly_bonus=current_yearly_bonus,
-                is_active=True
+                defaults={
+                    'full_name': full_name,
+                    'department': department,
+                    'division': division,
+                    'group': group,
+                    'position': position,
+                    'hire_date': hire_date,
+                    'current_salary': current_salary,
+                    'current_quarterly_bonus': current_quarterly_bonus,
+                    'current_monthly_bonus': current_monthly_bonus,
+                    'current_yearly_bonus': current_yearly_bonus,
+                    'is_active': True
+                }
             )
+            
+            # Если сотрудник уже существовал, обновляем его данные
+            if not created:
+                employee.full_name = full_name
+                employee.department = department
+                employee.division = division
+                employee.group = group
+                employee.position = position
+                employee.hire_date = hire_date
+                employee.current_salary = current_salary
+                employee.current_quarterly_bonus = current_quarterly_bonus
+                employee.current_monthly_bonus = current_monthly_bonus
+                employee.current_yearly_bonus = current_yearly_bonus
+                employee.is_active = True
+                employee.save()
+            
             created_employees.append(employee)
             
             # Создаем историю изменений зарплаты (1-3 записи на сотрудника)

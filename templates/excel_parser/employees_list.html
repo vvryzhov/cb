@@ -88,7 +88,9 @@
         </thead>
         <tbody class="bg-white divide-y divide-gray-200">
             {% for employee in page_obj %}
-            <tr class="hover:bg-gray-50">
+            <tr class="hover:bg-gray-50 cursor-pointer transition-colors" 
+                onclick="window.location.href='{% url 'employee_detail' employee.id %}'"
+                title="Нажмите для просмотра детальной информации">
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                     {{ employee.full_name }}
                 </td>
@@ -112,7 +114,8 @@
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm">
                     <a href="{% url 'employee_detail' employee.id %}" 
-                       class="text-blue-600 hover:text-blue-800">
+                       class="text-blue-600 hover:text-blue-800"
+                       onclick="event.stopPropagation();">
                         Подробнее
                     </a>
                 </td>

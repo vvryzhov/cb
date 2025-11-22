@@ -213,12 +213,11 @@ class Employee(models.Model):
     )
     
     # Метод для вычисления текущего дохода
-    @property
-    def current_income(self):
+    def _get_current_income(self):
         """Текущий доход, гросс - сумма оклада и всех премий"""
         # Если есть annotate поле (из with_current_income()), используем его
-        if hasattr(self, '_annotated_current_income'):
-            return self._annotated_current_income
+        if '_annotated_current_income' in self.__dict__:
+            return self.__dict__['_annotated_current_income']
         
         # Иначе вычисляем вручную
         return (
@@ -227,6 +226,8 @@ class Employee(models.Model):
             self.current_monthly_bonus +
             self.current_yearly_bonus
         )
+    
+    current_income = property(_get_current_income)
     
     # Метаданные
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")

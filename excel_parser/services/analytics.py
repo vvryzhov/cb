@@ -31,8 +31,8 @@ class AnalyticsService:
         except Department.DoesNotExist:
             return None
         
-        # Получаем сотрудников департамента
-        employees = Employee.objects.filter(department=department, is_active=True)
+        # Получаем сотрудников департамента с вычисляемым current_income
+        employees = Employee.objects.filter(department=department, is_active=True).with_current_income()
         
         # Получаем историю изменений за указанные годы
         history_from = SalaryHistory.objects.filter(
@@ -54,7 +54,7 @@ class AnalyticsService:
         )
         
         # Текущие показатели сотрудников
-        current_stats = employees.aggregate(
+        current_stats = employees.with_current_income().aggregate(
             total_current=Sum('current_income'),
             avg_current=Avg('current_income'),
             count=Count('id')
@@ -103,8 +103,8 @@ class AnalyticsService:
         if metrics is None:
             metrics = ['total_income', 'count']
         
-        # Базовый queryset
-        queryset = Employee.objects.filter(is_active=True)
+        # Базовый queryset с вычисляемым current_income
+        queryset = Employee.objects.filter(is_active=True).with_current_income()
         
         # Применяем фильтры
         if filters.get('department'):
@@ -211,7 +211,7 @@ class AnalyticsService:
         Returns:
             dict с сводными данными
         """
-        employees = Employee.objects.filter(is_active=True)
+        employees = Employee.objects.filter(is_active=True).with_current_income()
         
         # Текущий ФОТ
         current_fot = employees.aggregate(

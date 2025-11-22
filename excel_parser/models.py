@@ -2,6 +2,7 @@
 Models for Payroll BI - ФОТ (Фонд оплаты труда)
 """
 from django.db import models
+from django.db.models import F, Sum, DecimalField, ExpressionWrapper
 from django.core.validators import MinValueValidator
 from decimal import Decimal
 
@@ -97,6 +98,33 @@ class Group(models.Model):
 
     def __str__(self):
         return f"{self.division.department.name} - {self.division.name} - {self.name}"
+
+
+class EmployeeQuerySet(models.QuerySet):
+    """Кастомный QuerySet для Employee с поддержкой current_income в запросах"""
+    
+    def with_current_income(self):
+        """Добавляет вычисляемое поле current_income через annotate"""
+        return self.annotate(
+            current_income=ExpressionWrapper(
+                F('current_salary') + 
+                F('current_quarterly_bonus') + 
+                F('current_monthly_bonus') + 
+                F('current_yearly_bonus'),
+                output_field=DecimalField(max_digits=12, decimal_places=2)
+            )
+        )
+
+
+class EmployeeManager(models.Manager):
+    """Кастомный Manager для Employee"""
+    
+    def get_queryset(self):
+        return EmployeeQuerySet(self.model, using=self._db)
+    
+    def with_current_income(self):
+        """Возвращает QuerySet с вычисляемым полем current_income"""
+        return self.get_queryset().with_current_income()
 
 
 class Employee(models.Model):
@@ -198,6 +226,9 @@ class Employee(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Дата создания")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Дата обновления")
     is_active = models.BooleanField(default=True, verbose_name="Активен")
+    
+    # Кастомный менеджер
+    objects = EmployeeManager()
 
     class Meta:
         verbose_name = "Сотрудник"

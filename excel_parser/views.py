@@ -123,13 +123,13 @@ class EmployeeViewSet(viewsets.ModelViewSet):
     serializer_class = EmployeeSerializer
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['full_name', 'login', 'position']
-    ordering_fields = ['full_name', 'hire_date', 'current_salary', 'current_income']
+    ordering_fields = ['full_name', 'hire_date', 'current_salary']
     
     def get_queryset(self):
         queryset = Employee.objects.select_related(
             'department', 'division', 'group',
             'functional_manager', 'line_manager'
-        ).all()
+        ).with_current_income()
         
         # Фильтры
         department_id = self.request.query_params.get('department_id', None)
@@ -290,7 +290,7 @@ def index(request):
     employees_count = Employee.objects.filter(is_active=True).count()
     
     # Сводная статистика по ФОТ
-    fot_summary = Employee.objects.filter(is_active=True).aggregate(
+    fot_summary = Employee.objects.filter(is_active=True).with_current_income().aggregate(
         total_fot=Sum('current_income'),
         avg_fot=Avg('current_income'),
         total_salary=Sum('current_salary')
@@ -308,7 +308,7 @@ def employees_list(request):
     """Список сотрудников с фильтрами"""
     employees = Employee.objects.select_related(
         'department', 'division', 'group'
-    ).filter(is_active=True)
+    ).filter(is_active=True).with_current_income()
     
     # Фильтры
     search = request.GET.get('search', '')
